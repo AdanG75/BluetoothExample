@@ -1,0 +1,17 @@
+<resources>
+    <string name="app_name">BluetoothExample</string>
+    <string name="error_bluetooth_not_supported">Bluetooth is not available</string>
+    <string name="bluetooth_available">Bluetooth is available</string>
+    <string name="bluetooth_turn_on">Bluetooth on</string>
+    <string name="error_bluetooth_not_turn_on">Bluetooth con not be turned on</string>
+    <string name="bluetooth_already_on">Bluetooth is already on</string>
+    <!-- fragment control bluetooth strings -->
+    <string name="hello_blank_fragment">Hello blank fragment</string>
+    <string name="connect">Conectar</string>
+    <string name="disconnect">Desconectar</string>
+    <string name="message">Message</string>
+    <string name="send">Enviar</string>
+    <string name="paired_devices">Paired Devices</string>
+    <string name="no_devices_paired">No devices have not been paired</string>
+
+</resources>

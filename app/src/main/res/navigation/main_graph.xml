@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/main_graph"
+    app:startDestination="@id/controlBluetoothFragment">
+
+    <fragment
+        android:id="@+id/controlBluetoothFragment"
+        android:name="com.example.bluetoothexample.ControlBluetoothFragment"
+        android:label="fragment_control_bluetooth"
+        tools:layout="@layout/fragment_control_bluetooth" >
+        <action
+            android:id="@+id/action_controlBluetoothFragment_to_pairedDevicesFragment"
+            app:destination="@id/pairedDevicesFragment" />
+    </fragment>
+    <fragment
+        android:id="@+id/pairedDevicesFragment"
+        android:name="com.example.bluetoothexample.PairedDevicesFragment"
+        android:label="fragment_paired_devices"
+        tools:layout="@layout/fragment_paired_devices" />
+</navigation>
