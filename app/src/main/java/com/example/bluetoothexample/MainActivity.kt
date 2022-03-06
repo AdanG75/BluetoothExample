@@ -9,14 +9,13 @@ import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.os.bundleOf
-import androidx.navigation.Navigation
-import androidx.navigation.findNavController
+import androidx.lifecycle.MutableLiveData
 
 
 class MainActivity : AppCompatActivity() {
 
-//    lateinit var bluetoothManager: BluetoothManager
+    private lateinit var bluetoothManager: BluetoothManager
+    private val listen : MutableLiveData<BluetoothAdapter> =  MutableLiveData<BluetoothAdapter>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -24,25 +23,18 @@ class MainActivity : AppCompatActivity() {
 
 
         BtClass.bluetoothManager = turnOnBluetoothIfIsAvailable()
+        BtClass.bluetoothManager?.let {
+            bluetoothManager = it
+        }
+        listen.value = BtClass.bluetoothManager?.adapter
+    }
 
-//        if (bluetoothManager != null) {
-//            val bundle: Bundle = bundleOf("bluetoothAdapter" to bluetoothManager.adapter)
-//
-//            val myFragment: ControlBluetoothFragment = ControlBluetoothFragment()
-//            myFragment.arguments = bundle
-//        }
+    override fun onResume() {
+        super.onResume()
 
-
-        //Bundle needs a parcelable object and Bluetooth Manager class isn't parcelable
-//        val bundle: Bundle = bundleOf("bluetoothManager" to bluetoothManager)
-//
-//        val myFragment: ControlBluetoothFragment = ControlBluetoothFragment()
-//        myFragment.arguments = bundle
-
-        //Failed to pass bluetoothManager to controlBluetoothFragment
-//        Navigation
-//            .findNavController(this, R.id.controlBluetoothFragment)
-//            .navigate(R.id.controlBluetoothFragment, bundle)
+        listen.observe(this, {
+            turnOnBluetooth(bluetoothManager = bluetoothManager)
+        })
     }
 
     private fun isAdapterAvailable(): Pair<Boolean, BluetoothManager> {
@@ -81,16 +73,10 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    public fun turnOnBluetoothIfIsAvailable(): BluetoothManager{
+    private fun turnOnBluetoothIfIsAvailable(): BluetoothManager{
         val (isAvailable, bluetoothManager) = isAdapterAvailable()
 
         if (isAvailable) {
-
-//            Toast.makeText(
-//                this,
-//                R.string.bluetooth_available,
-//                Toast.LENGTH_LONG
-//            ).show()
 
             if (!turnOnBluetooth(bluetoothManager)) {
                 Toast.makeText(
@@ -105,6 +91,8 @@ class MainActivity : AppCompatActivity() {
                 R.string.error_bluetooth_not_supported,
                 Toast.LENGTH_LONG
             ).show()
+
+            finish()
         }
 
         return bluetoothManager
