@@ -13,7 +13,6 @@ import java.io.OutputStream
 import java.util.*
 
 
-
 class BtClass(val handler: Handler) {
     private var mConnectThread: ConnectThread? = null
     private var mConnectedThread: ConnectedThread? = null
@@ -37,7 +36,7 @@ class BtClass(val handler: Handler) {
         }
     }
 
-    fun stop() {
+    fun stopBluetooth() {
         mConnectedThread?.cancel()
         mConnectedThread = null
 
@@ -48,11 +47,42 @@ class BtClass(val handler: Handler) {
         handler.obtainMessage(CONNECTING_STATUS, 2, -1).sendToTarget()
     }
 
-    private inner class ConnectThread(btName: String, btAddress: String, btUUID: UUID) : Thread() {
+    private fun startConnectedThread(socket: BluetoothSocket?): Unit {
+        if (socket != null) {
+            mConnectedThread?.cancel()
+            mConnectedThread = null
+
+            mConnectedThread = ConnectedThread(socket)
+            mConnectedThread?.start()
+        } else {
+            handler.obtainMessage(CONNECTING_STATUS, -1, -1).sendToTarget()
+        }
+    }
+
+    fun write(out: ByteArray) {
+        // Create temporary object
+        var r: ConnectedThread? = null
+        // Synchronize a copy of the ConnectedThread
+        synchronized(this) {
+            if (mState != STATE_CONNECTED) {
+                return
+            }
+            mConnectedThread?.let {
+                r = mConnectedThread
+            }
+        }
+        // Perform the write un synchronized
+        r?.let {
+            it.write(out)
+        }
+    }
+
+    private inner class ConnectThread(private val btName: String,
+                                      private val btAddress: String,
+                                      private val btUUID: UUID) : Thread() {
 
         private lateinit var bluetoothAdapter: BluetoothAdapter
         private val device: BluetoothDevice
-        private val btName: String = btName
 
         init {
             bluetoothManager?.let {
@@ -86,6 +116,7 @@ class BtClass(val handler: Handler) {
                         Log.e("Status", "Cannot connect to device")
                         handler.obtainMessage(CONNECTING_STATUS, -1, -1).sendToTarget()
                     } catch (closeException: IOException) {
+                        stopBluetooth()
                         Log.e(TAG, "Could not close the client socket", closeException)
                     }
                     return
@@ -93,7 +124,7 @@ class BtClass(val handler: Handler) {
 
                 // The connection attempt succeeded. Perform work associated with
                 // the connection in a separate thread.
-                ConnectedThread(socket)
+                startConnectedThread(socket)
             }
         }
 
@@ -114,23 +145,19 @@ class BtClass(val handler: Handler) {
         private val mmBuffer: ByteArray = ByteArray(1024) // mmBuffer store for the stream
 
         override fun run() {
-            var numBytes: Int // bytes returned from read()
+            var bytes: Int // bytes returned from read()
 
             // Keep listening to the InputStream until an exception occurs.
-            while (true) {
+            while (mState == STATE_CONNECTED) {
                 // Read from the InputStream.
-                numBytes = try {
-                    mmInStream.read(mmBuffer)
+                try {
+                    bytes = mmInStream.read(mmBuffer)
+                    handler.obtainMessage(MESSAGE_READ, bytes, -1, mmBuffer).sendToTarget()
                 } catch (e: IOException) {
                     Log.d(TAG, "Input stream was disconnected", e)
+                    stopBluetooth()
                     break
                 }
-
-                // Send the obtained bytes to the UI activity.
-                val readMsg = handler.obtainMessage(
-                    MESSAGE_READ, numBytes, -1,
-                    mmBuffer)
-                readMsg.sendToTarget()
             }
         }
 
@@ -138,16 +165,16 @@ class BtClass(val handler: Handler) {
         fun write(bytes: ByteArray) {
             try {
                 mmOutStream.write(bytes)
+                handler.obtainMessage(MESSAGE_WRITE, 1, -1, mmBuffer).sendToTarget()
             } catch (e: IOException) {
                 Log.e(TAG, "Error occurred when sending data", e)
-
+                stopBluetooth()
+                handler.obtainMessage(MESSAGE_WRITE, -1, -1).sendToTarget()
                 return
             }
 
             // Share the sent message with the UI activity.
-            val writtenMsg = handler.obtainMessage(
-                MESSAGE_WRITE, -1, -1, mmBuffer)
-            writtenMsg.sendToTarget()
+
         }
 
         // Call this method from the main activity to shut down the connection.
@@ -165,7 +192,13 @@ class BtClass(val handler: Handler) {
         const val STATE_NONE: Int = 0 // we're doing nothing
         const val STATE_CONNECTING: Int = 1 // now initiating an outgoing connection
         const val STATE_CONNECTED: Int = 2 // now connected to a remote device
+        const val HORIZONTAL_TAB: Char = '\t'
 
         var bluetoothManager: BluetoothManager? = null
+
+        var possibleFingerprint: Boolean = false
+        var firstMessage: Boolean = false
+        var position: Int = 0
+        var gettingFingerprintRawProcess: Boolean = false
     }
 }
