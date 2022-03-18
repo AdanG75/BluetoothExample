@@ -142,17 +142,50 @@ class BtClass(val handler: Handler) {
 
         private val mmInStream: InputStream = mmSocket.inputStream
         private val mmOutStream: OutputStream = mmSocket.outputStream
-        private val mmBuffer: ByteArray = ByteArray(1024) // mmBuffer store for the stream
+        private val mmBuffer: ByteArray = ByteArray(SIZE_BUFFER) // mmBuffer store for the stream
+        private val mmIntBuffer: IntArray = IntArray(SIZE_BUFFER)
+        private val mmFingerBuffer: IntArray = IntArray(SIZE_FINGERPRINT_BUFFER)
 
         override fun run() {
             var bytes: Int // bytes returned from read()
+            var valByte: Int
+            var pos: Int = 0
 
             // Keep listening to the InputStream until an exception occurs.
             while (mState == STATE_CONNECTED) {
                 // Read from the InputStream.
                 try {
-                    bytes = mmInStream.read(mmBuffer)
-                    handler.obtainMessage(MESSAGE_READ, bytes, -1, mmBuffer).sendToTarget()
+                    // bytes = mmInStream.read(mmBuffer)
+                    // handler.obtainMessage(MESSAGE_READ, bytes, -1, mmBuffer).sendToTarget()
+
+                    valByte = mmInStream.read()
+                    if (valByte != -1) {
+                        mmIntBuffer[pos] = valByte
+
+                        if (mmIntBuffer[pos] == HORIZONTAL_TAB){
+                            handler.obtainMessage(MESSAGE_READ, pos, -1, mmIntBuffer)
+                                .sendToTarget()
+                            pos = -1
+                            for (dataPos in 0 until SIZE_FINGERPRINT_BUFFER) {
+                                mmFingerBuffer[dataPos] = mmInStream.read()
+                            }
+                            handler.obtainMessage(MESSAGE_READ, SIZE_FINGERPRINT_BUFFER, 1, mmFingerBuffer)
+                                .sendToTarget()
+                            bytes = mmInStream.read(mmBuffer)
+                            handler.obtainMessage(MESSAGE_READ, bytes, 2, mmBuffer).sendToTarget()
+                        }
+                        ++pos
+
+                        if (pos == 100) {
+                            handler.obtainMessage(MESSAGE_READ, pos, -1, mmIntBuffer)
+                                .sendToTarget()
+                            pos = 0
+                        }
+                    } else {
+                        handler.obtainMessage(MESSAGE_READ, pos, -1, mmIntBuffer)
+                            .sendToTarget()
+                        pos = 0
+                    }
                 } catch (e: IOException) {
                     Log.d(TAG, "Input stream was disconnected", e)
                     stopBluetooth()
@@ -172,9 +205,6 @@ class BtClass(val handler: Handler) {
                 handler.obtainMessage(MESSAGE_WRITE, -1, -1).sendToTarget()
                 return
             }
-
-            // Share the sent message with the UI activity.
-
         }
 
         // Call this method from the main activity to shut down the connection.
@@ -192,13 +222,12 @@ class BtClass(val handler: Handler) {
         const val STATE_NONE: Int = 0 // we're doing nothing
         const val STATE_CONNECTING: Int = 1 // now initiating an outgoing connection
         const val STATE_CONNECTED: Int = 2 // now connected to a remote device
-        const val HORIZONTAL_TAB: Char = '\t'
+
+        private const val HORIZONTAL_TAB: Int = 9
+
+        private const val SIZE_FINGERPRINT_BUFFER: Int = 36864
+        private const val SIZE_BUFFER: Int = 100
 
         var bluetoothManager: BluetoothManager? = null
-
-        var possibleFingerprint: Boolean = false
-        var firstMessage: Boolean = false
-        var position: Int = 0
-        var gettingFingerprintRawProcess: Boolean = false
     }
 }

@@ -23,9 +23,7 @@ const val CONNECTING_STATUS: Int = 1
 const val MESSAGE_READ: Int = 2
 const val MESSAGE_WRITE: Int = 3
 
-val setupRegex = """(?i).*nd image t.*""".toRegex()
-val waitingRegex = """(?i).*ting for a.*""".toRegex()
-val imageTakenRegex = """(?i).*ge tak.*""".toRegex()
+val streamCompleteRegex = """(?i).*stream complete.*""".toRegex()
 
 class ControlBluetoothFragment : Fragment(R.layout.fragment_control_bluetooth) {
 
@@ -160,33 +158,37 @@ class ControlBluetoothFragment : Fragment(R.layout.fragment_control_bluetooth) {
                 }
             }
             MESSAGE_READ -> {
-                val mBuffer: ByteArray = message.obj as ByteArray
-                val arduinoMessage: String? = String(mBuffer, 0, message.arg1)
-
-                arduinoMessage?.let { message ->
-
-                    if (!BtClass.possibleFingerprint) {
-                        when {
-                            setupRegex.containsMatchIn(message) -> {
-                                setOutputText(message)
+                when (message.arg2) {
+                    -1 -> {
+                        val auxIntArray: IntArray? = message.obj as IntArray
+                        auxIntArray?.let {
+                            val messageBt: String = String(auxIntArray, 0, message.arg1)
+                            if (messageBt.isNotEmpty()) {
+                                setOutputText(messageBt)
                             }
-                            waitingRegex.containsMatchIn(message) -> {
-                                setOutputText(message)
-                                BtClass.possibleFingerprint = true
-                            }
-                            else -> {
-                                setOutputText(message)
-                            }
-                        }
-                    } else {
-                        if (imageTakenRegex.containsMatchIn(message)) {
-                            BtClass.firstMessage = true
-                            BtClass.gettingFingerprintRawProcess = true
                         }
                     }
-
-                    if (BtClass.gettingFingerprintRawProcess) {
-                        getFingerprintRaw(BtClass.firstMessage, message)
+                    1 -> {
+                        val intFingerprintRaw: IntArray? = message.obj as IntArray
+                        intFingerprintRaw?.let { buffer ->
+                            var pos = 0
+                            buffer.forEach { data ->
+                                mFingerprintBuffer[pos] = data.toUByte()
+                                ++pos
+                            }
+                        }
+                    }
+                    else -> {
+                        val mBuffer: ByteArray? = message.obj as ByteArray
+                        mBuffer?.let {
+                            val arduinoMessage: String = String(mBuffer, 0, message.arg1)
+                            if (arduinoMessage.isNotEmpty()) {
+                                setOutputText(arduinoMessage)
+                                if (streamCompleteRegex.containsMatchIn(arduinoMessage)) {
+                                    printFingerprintRaw()
+                                }
+                            }
+                        }
                     }
                 }
                 true
@@ -252,57 +254,12 @@ class ControlBluetoothFragment : Fragment(R.layout.fragment_control_bluetooth) {
     }
 
     @ExperimentalUnsignedTypes
-    private fun getFingerprintRaw(firstMessage: Boolean, data: String) {
-
-        if (firstMessage) {
-            val firstPartString: String = data
-                .substringBefore(BtClass.HORIZONTAL_TAB, "None")
-
-            if (firstPartString == "None") {
-                setOutputText(data)
-                return
-            }
-
-            val secondPartString: String = data.substringAfter(BtClass.HORIZONTAL_TAB)
-
-            if (secondPartString.isNotEmpty()) {
-                getDataFingerprintRaw(secondPartString)
-            }
-
-            BtClass.firstMessage = false
-            return
+    private fun printFingerprintRaw() {
+        var pos = 0
+        mFingerprintBuffer.forEach {
+            Log.d("DataFingerprint", "$pos: $it")
+            ++pos
         }
-
-        getDataFingerprintRaw(data)
-    }
-
-    @ExperimentalUnsignedTypes
-    fun getDataFingerprintRaw(dataString: String) {
-        var posSubString = 0
-        while (true) {
-            mFingerprintBuffer[BtClass.position] = dataString[posSubString]
-                .code.toUByte()
-            ++BtClass.position
-            ++posSubString
-            if (BtClass.position > 36863) {
-                BtClass.position = 0
-                BtClass.possibleFingerprint = false
-                BtClass.gettingFingerprintRawProcess = false
-                break
-            }
-            if (posSubString == dataString.length) {
-                break
-            }
-        }
-
-        if (posSubString < dataString.length - 1) {
-            val finalPartString: String = dataString
-                .substring(posSubString until dataString.length)
-            if (finalPartString.isNotEmpty()) {
-                setOutputText(finalPartString)
-            }
-        }
-
-        return
+        Log.d("LengthFingerprint", "${mFingerprintBuffer.size}")
     }
 }
